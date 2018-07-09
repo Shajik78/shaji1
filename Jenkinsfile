@@ -7,6 +7,7 @@ node {
     stage('Build image') {
         /* This builds the actual image; synonymous to
          * docker build on the command line */
+      sudo gpasswd -a $USER docker 
         app = docker.build("shaji1")
     }
 
