@@ -24,13 +24,10 @@ node {
          * First, the incremental build number from Jenkins
          * Second, the 'latest' tag.
          * Pushing multiple tags is cheap, as all the layers are reused. */
-     docker.withRegistry("765421969562.dkr.ecr.us-east-1.amazonaws.com/shaji1", "ecr:us-east-1:credential-id") {
-  docker.image("Shaji1").push()
-}
-        docker.withRegistry('https://registry.hub.docker.com', 'docker-hub-credentials') {
-            app.push("${env.BUILD_NUMBER}")
-            app.push("latest")
+    steps {
+        script {
+          def datas = readYaml file: 'push_image.yml'
+          echo "Image pushed"
         }
-    }
 }
 /* end of build  */
