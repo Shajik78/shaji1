@@ -1,1 +1,1 @@
-FROM shaji1
+FROM shaji1:latest
