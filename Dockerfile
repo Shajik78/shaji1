@@ -12,4 +12,7 @@ FROM nginx:1.15
 COPY --from=build-stage /app/dist/out/ /usr/share/nginx/html
 # Copy the default nginx.conf provided by tiangolo/node-frontend
 COPY --from=build-stage /nginx.conf /etc/nginx/conf.d/default.conf
-
+docker build -t shaji1:prod .
+docker.withRegistry("765421969562.dkr.ecr.us-east-1.amazonaws.com/shajitest", "ecr:us-east-1:credential-id") {
+  docker.image("your-image-name").push()
+}
