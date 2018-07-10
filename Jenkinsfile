@@ -31,4 +31,5 @@ node {
         }
     }
 }
+}
 /* end of build  */
