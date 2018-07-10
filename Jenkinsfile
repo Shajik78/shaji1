@@ -29,5 +29,6 @@ node {
           def datas = readYaml file: 'push_image.yml'
           echo "Image pushed"
         }
+    }
 }
 /* end of build  */
