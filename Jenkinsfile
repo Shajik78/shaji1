@@ -1,169 +1,35 @@
-#! /usr/bin/groovy
 
-final String AGENT_LABEL = 'docker && !mr-0xc8'
-final String IMAGE_NAME = "${params.dockerRegistry}/opsh2oai/h2o-3-runtime"
-def pipelineContext = null
-
-pipeline {
-
-    agent { label AGENT_LABEL }
-
-    parameters {
-      string(name: 'gitBranch', defaultValue: 'master', description: 'Branch to load the Dockerfile from.')
-      booleanParam(name: 'force', defaultValue: false, description: 'If false and image with version specified by BuildConfig exists in repository, then the build fails.')
-      booleanParam(name: 'publishDockerImage', defaultValue: true, description: 'If true, publish the docker image')
-      string(name: 'dockerRegistry', defaultValue: 'docker.h2o.ai')
-      booleanParam(name: 'noCache', defaultValue: false, description: 'If true, build the docker image using the --no-cache flag')
+node {
+    def app
+    stage('Clone repository') {
+        /* Let's make sure we have the repository cloned to our workspace */
+        checkout scm
     }
+stage('Build image')  {
+  checkout scm
+  sh "docker build -t  shaji1 ."
+}
 
-    environment {
-        H2O_GIT_URL = 'https://github.com/Shajik78/shaji1'
-    }
+    stage('Test image') {
+        /* Ideally, we would run a test framework against our image.
+         * For this example, we're using a Volkswagen-type approach ;-) */
 
-    options {
-        ansiColor('xterm')
-        timestamps()
-        timeout(time: 3, unit: 'HOURS')
-    }
-
-    stages {
-
-        stage('Checkout Sources') {
-            steps {
-                script {
-                    final String stageName = 'Checkout Sources'
-                    def final scmEnv = git url: https://github.com/Shajik78/shaji1, branch: Master
-
-                    def final pipelineContextFactory = load('scripts/jenkins/groovy/pipelineContext.groovy')
-                    pipelineContext = pipelineContextFactory('.', 'MODE_BUILD_DOCKER', scmEnv, true)
-
-                    try {
-                        final String version = pipelineContext.getBuildConfig().getDefaultImageVersion()
-
-                        currentBuild.displayName += " v${version}"
-
-                        pipelineContext.getBuildSummary().addStageSummary(this, stageName, '')
-                        pipelineContext.getBuildSummary().setStageDetails(this, stageName, env.NODE_NAME, env.WORKSPACE)
-
-                        pipelineContext.getBuildSummary().addSection(this, 'docker-details', "<a href=\"${currentBuild.rawBuild.getAbsoluteUrl()}\" style=\"color: black;\">Details</a>", """
-                            <ul>
-                            <li><strong>Git Branch:</strong> ${env.BRANCH_NAME}</li>
-                            <li><strong>Version:</strong> ${version}</li>
-                            <li><strong>Force Overwrite:</strong> ${params.force}</li>
-                            <li><strong>Publish:</strong> ${params.publishDockerImage}</li>
-                            <li><strong>Disable Cache:</strong> ${params.noCache}</li>
-                            </ul>
-                        """)
-                        pipelineContext.getBuildSummary().markStageSuccessful(this, stageName)
-                    } catch (Exception e) {
-                        pipelineContext.getBuildSummary().markStageFailed(this, stageName)
-                        throw e
-                    }
-                }
-            }
-        }
-
-        stage('Pre-build checks') {
-            steps {
-                script {
-                    final String stageName = 'Pre-build checks'
-                    try {
-                        pipelineContext.getBuildSummary().addStageSummary(this, stageName, '')
-                        pipelineContext.getBuildSummary().setStageDetails(this, stageName, env.NODE_NAME, env.WORKSPACE)
-
-                        final String version = pipelineContext.getBuildConfig().getDefaultImageVersion()
-
-                        final boolean conflict = pipelineContext.getUtils()
-                                .dockerImageExistsInRegistry(this, params.dockerRegistry, 'opsh2oai/h2o-3-runtime', version)
-                        if (conflict && !params.force) {
-                            error "Tag opsh2oai/h2o-3-runtime:${version} already exists in the repository"
-                        }
-                        pipelineContext.getBuildSummary().markStageSuccessful(this, stageName)
-                    } catch (Exception e) {
-                        pipelineContext.getBuildSummary().markStageFailed(this, stageName)
-                        throw e
-                    }
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    final String stageName = 'Build Docker Image'
-                    try {
-                        pipelineContext.getBuildSummary().addStageSummary(this, stageName, '')
-                        pipelineContext.getBuildSummary().setStageDetails(this, stageName, env.NODE_NAME, env.WORKSPACE)
-
-                        final String version = pipelineContext.getBuildConfig().getDefaultImageVersion()
-
-                        def dockerBuildCMD = 'docker build'
-                        if (params.noCache) {
-                            dockerBuildCMD += ' --no-cache'
-                        }
-                        dockerBuildCMD += " -t ${IMAGE_NAME}:${version} --build-arg JENKINS_UID=\$(id -u) --build-arg JENKINS_GID=\$(id -g) --build-arg H2O_BRANCH=${params.gitBranch} ."
-                        sh """
-                            printenv
-                            cd docker
-                            ${dockerBuildCMD}
-                        """
-                        pipelineContext.getBuildSummary().markStageSuccessful(this, stageName)
-                    } catch (Exception e) {
-                        pipelineContext.getBuildSummary().markStageFailed(this, stageName)
-                        throw e
-                    }
-                }
-            }
-        }
-
-        stage('Publish Docker Image') {
-            when {
-                expression { params.publishDockerImage }
-            }
-            steps {
-                script {
-                    final String stageName = 'Publish Docker Image'
-                    try {
-                        pipelineContext.getBuildSummary().addStageSummary(this, stageName, '')
-                        pipelineContext.getBuildSummary().setStageDetails(this, stageName, env.NODE_NAME, env.WORKSPACE)
-
-                        final String version = pipelineContext.getBuildConfig().getDefaultImageVersion()
-
-                        withCredentials([usernamePassword(credentialsId: "${params.dockerRegistry}", usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')]) {
-                            sh """
-                                docker login -u $REGISTRY_USERNAME -p $REGISTRY_PASSWORD ${params.dockerRegistry}
-                                docker push ${IMAGE_NAME}:${version}
-                            """
-                            echo "###### Docker image ${IMAGE_NAME}:${version} built and pushed. ######"
-                        }
-                        pipelineContext.getBuildSummary().markStageSuccessful(this, stageName)
-                    } catch (Exception e) {
-                        pipelineContext.getBuildSummary().markStageFailed(this, stageName)
-                        throw e
-                    }
-                }
-            }
+        app.inside {
+            sh 'echo "Tests passed"'
         }
     }
 
-    post {
-        failure {
-            emailext(
-                    subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                    body: """<p>FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
-        <p>Check console output at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>"</p>""",
-                    to: "michalr@h2o.ai"
-            )
-        }
-        success {
-            emailext(
-                    subject: "New ${IMAGE_NAME} docker image READY!",
-                    body: """<p>The new ${IMAGE_NAME} docker image is ready.</p>
-                          <p>Check the build at "<a href="${env.BUILD_URL}">${env.JOB_NAME} [${
-                        env.BUILD_NUMBER
-                    }]</a>"</p>""",
-                    to: "michalr@h2o.ai"
-            )
+    stage('Push image') {
+        /* Finally, we'll push the image with two tags:
+         * First, the incremental build number from Jenkins
+         * Second, the 'latest' tag.
+         * Pushing multiple tags is cheap, as all the layers are reused. */
+    steps {
+        script {
+          def datas = readYaml file: 'push_image.yml'
+          echo "Image pushed"
         }
     }
 }
+}
+/* end of build  */
