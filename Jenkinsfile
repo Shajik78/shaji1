@@ -11,7 +11,7 @@ stage('Build image')  {
 }
   stage('Push image') {
        docker.withRegistry('765421969562.dkr.ecr.us-east-1.amazonaws.com/shaji1', 'ecr:us-east-1:shaji') {
-    docker.image('demo').push('latest')
+    docker.image('shaji1').push('latest')
         }
     }
 }
