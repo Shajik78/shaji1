@@ -1,5 +1,5 @@
 
-FROM node:8.1.4 AS builder
+FROM node:10.5 as build-stage
 
 # --------------------------------------
 # Install Chrome for testing
