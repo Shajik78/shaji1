@@ -1,45 +1,34 @@
+### STAGE 1: Build ###
 
-FROM node:8.11-alpine as build-stage
+# We label our stage as 'builder'
+FROM node:8-alpine as builder
 
-# --------------------------------------
-# Install Chrome for testing
-# --------------------------------------
+COPY package.json package-lock.json ./
 
-# --------------------------------------
-# Install npm packages
-# --------------------------------------
+RUN npm set progress=false && npm config set depth 0 && npm cache clean --force
 
-WORKDIR /app
-COPY package.json ./package.json
+## Storing node modules on a separate layer will prevent unnecessary npm installs at each build
+RUN npm i && mkdir /ng-app && cp -R ./node_modules ./ng-app
 
-COPY . /app
+WORKDIR /ng-app
 
-# --------------------------------------
-# Run Tests
-# --------------------------------------
-RUN ng test --progress false --single-run
+COPY . .
 
-# --------------------------------------
-# Build PROD & BETA
-# --------------------------------------
-RUN ng build --prod --no-progress && \
-    ng build --environment beta  --no-progress --prod --output-path dist-beta
+## Build the angular app in production mode and store the artifacts in dist folder
+RUN $(npm bin)/ng build --prod --build-optimizer
 
-# --------------------------------------
-# Create final image
-# --------------------------------------
-FROM nginx:1.13.1
 
-WORKDIR /app
-COPY --from=builder /app/dist .
+### STAGE 2: Setup ###
 
-WORKDIR /app-beta
-COPY --from=builder /app/dist-beta .
+FROM nginx:1.13.3-alpine
 
-RUN  rm -rf /usr/share/nginx/html/* && \
-	 cp -R /app/* /usr/share/nginx/html/  && \
-	 mkdir /usr/share/nginx/html-beta/  && \
-	 cp -R /app-beta/* /usr/share/nginx/html-beta/
+## Copy our default nginx config
+COPY nginx/default.conf /etc/nginx/conf.d/
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+## Remove default nginx website
+RUN rm -rf /usr/share/nginx/html/*
 
+## From 'builder' stage copy over the artifacts in dist folder to default nginx public folder
+COPY --from=builder /ng-app/dist /usr/share/nginx/html
+
+CMD ["nginx", "-g", "daemon off;"]
