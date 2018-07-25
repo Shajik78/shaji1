@@ -1,11 +1,16 @@
-FROM node:argon
+ ### STAGE 1: Build ###
 
-# Create app directory
-RUN mkdir -p /usr/src/app
-WORKDIR /usr/src/app
+# We label our stage as ‘builder’
+FROM node:8.1.4-alpine as builder
 
-# Install app dependencies
-COPY package.json /usr/src/app/
-RUN npm install --quiet
-EXPOSE 8000
-CMD [ "npm", "run", "dev" ]
+COPY package.json package-lock.json ./
+
+## Storing node modules on a separate layer will prevent unnecessary npm installs at each build
+RUN npm i && mkdir /ng-app && cp -R ./node_modules ./ng-app
+
+WORKDIR /ng-app
+
+COPY . .
+
+## Build the angular app in production mode and store the artifacts in dist folder
+RUN $(npm bin)/ng build --prod
