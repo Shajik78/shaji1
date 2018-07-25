@@ -1,5 +1,5 @@
 # Stage 0, "build-stage", based on Node.js, to build and compile the frontend
-FROM angular/ngcontainer as build-stage
+FROM teracy/angular-cli as build-stage
 WORKDIR /app
 COPY package*.json /app/
 RUN npm install
